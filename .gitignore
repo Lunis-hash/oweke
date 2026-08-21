@@ -30,8 +30,19 @@ yarn-debug.log*
 yarn-error.log*
 .pnpm-debug.log*
 
+<<<<<<< HEAD
 # env files (can opt-in for committing if needed)
 .env*
+=======
+# Build outputs
+dist/
+build/
+.expo/
+*.log
+android/.gradle/
+android/app/build/
+android/build/
+>>>>>>> 2b531e4 (feat: Add confirm password field, telephone fallback, 11 modules interview UI, and performance optimizations)
 
 # vercel
 .vercel
