@@ -30,8 +30,12 @@ import {
   Check,
   Eye,
   EyeOff,
+  Briefcase,
+  Plus,
+  X,
 } from 'lucide-react-native';
 import { Colors, Typography, Spacing, BorderRadius } from '@/constants/theme';
+import { PROFESSIONS_DATA, ALL_PROFESSIONS } from '@/constants/professions';
 
 const { width: SCREEN_WIDTH } = Dimensions.get('window');
 
@@ -114,7 +118,7 @@ import { AuthService } from '@/services/auth';
 
 export default function ProfileDetailsScreen() {
   const router = useRouter();
-  const { signIn } = useAuth();
+  const { signIn, signOut, token } = useAuth();
   const [step, setStep] = useState(1);
   const [isSubmitting, setIsSubmitting] = useState(false);
 
@@ -122,12 +126,18 @@ export default function ProfileDetailsScreen() {
   const [firstName, setFirstName]   = useState('');
   const [lastName, setLastName]     = useState('');
   const [profession, setProfession] = useState('');
+  const [showProfessionModal, setShowProfessionModal] = useState(false);
+  const [professionSearch, setProfessionSearch] = useState('');
   const [birthday, setBirthday]     = useState<Date | null>(null);
   const [gender, setGender]         = useState<'H' | 'F' | null>(null);
   const [showCalendar, setShowCalendar] = useState(false);
   const [calMonth, setCalMonth]     = useState(new Date().getMonth());
   const [calYear, setCalYear]       = useState(new Date().getFullYear() - 25);
   const [showYearPicker, setShowYearPicker] = useState(false);
+
+  const filteredProfessions = ALL_PROFESSIONS.filter(p =>
+    p.toLowerCase().includes(professionSearch.toLowerCase().trim())
+  );
 
   // Step 2 — Localisation
   const [country, setCountry]       = useState<Country | null>(null);
@@ -149,8 +159,11 @@ export default function ProfileDetailsScreen() {
   const [showPassword, setShowPassword]   = useState(false);
   const [showConfirmPassword, setShowConfirmPassword] = useState(false);
 
-  // Auto-détection dynamique du pays au démarrage
+  // Auto-détection dynamique du pays au démarrage & reset session précédente
   useEffect(() => {
+    if (token) {
+      signOut().catch(() => {});
+    }
     const detected = detectUserCountry();
     if (detected) {
       setCountry(detected);
@@ -198,31 +211,64 @@ export default function ProfileDetailsScreen() {
           job: profession.trim(),
         });
 
-        // Connexion auto avec les tokens
-        await signIn(result.access_token, result.userId, result.refresh_token);
+        // Vérifier si le token est fourni ou si une vérification OTP est requise
+        const token = result?.access_token || result?.token || result?.accessToken;
+        const userId = result?.userId || result?.user?.id || result?.id || result?.user?._id || result?._id;
+        const refreshToken = result?.refresh_token || result?.refreshToken;
 
-        // Pré-remplir le périmètre de recherche dans le Module 0 pour éviter la redondance
-        if (meetingScope) {
-          const scopeMap: Record<string, string> = {
-            local: 'A',
-            national: 'C',
-            international: 'D',
-          };
-          const mappedKey = scopeMap[meetingScope];
-          if (mappedKey) {
-            try {
-              const { InterviewService } = require('@/services/interview');
-              await InterviewService.saveModule(0, { M0_Q02: mappedKey });
-            } catch (e) {
-              console.warn('Erreur pré-remplissage Module 0 :', e);
-            }
-          }
+        if (token) {
+          await signIn(token, userId, refreshToken);
+          router.replace('/interview/0');
+        } else {
+          // Le compte a été créé mais nécessite obligatoirement la validation du code OTP
+          router.push({
+            pathname: '/(auth)/verify',
+            params: { email: email.trim() },
+          });
         }
-
-        router.replace('/interview/0');
       } catch (error: any) {
         console.error('Registration failed:', error);
-        Alert.alert('Erreur', error.response?.data?.message || 'Une erreur est survenue lors de l\'inscription');
+        const serverMsg = error.response?.data?.message;
+        const isExisting = error.response?.status === 409 || (typeof serverMsg === 'string' && serverMsg.toLowerCase().includes('already exists'));
+
+        if (isExisting) {
+          Alert.alert(
+            'Compte existant',
+            'Un compte existe déjà avec cette adresse email. Souhaitez-vous vous connecter ?',
+            [
+              { text: 'Annuler', style: 'cancel' },
+              {
+                text: 'Se connecter',
+                onPress: async () => {
+                  try {
+                    setIsSubmitting(true);
+                    const loginRes = await AuthService.login(email.trim(), password);
+
+                    // Si le compte n'est pas vérifié, redirection vers l'écran OTP
+                    if (loginRes.isVerified === false || (!loginRes.access_token && loginRes.email)) {
+                      router.push({
+                        pathname: '/(auth)/verify',
+                        params: { email: (loginRes.email || email).trim() },
+                      });
+                      return;
+                    }
+
+                    const lToken = loginRes?.access_token || loginRes?.token || loginRes?.accessToken;
+                    const lUserId = loginRes?.userId || loginRes?.user?.id || loginRes?.id || loginRes?._id;
+                    await signIn(lToken, lUserId, loginRes?.refresh_token || loginRes?.refreshToken);
+                    router.replace('/interview/0');
+                  } catch (loginErr) {
+                    router.replace('/(auth)/login');
+                  } finally {
+                    setIsSubmitting(false);
+                  }
+                },
+              },
+            ]
+          );
+        } else {
+          Alert.alert('Erreur', serverMsg || error.message || 'Une erreur est survenue lors de l\'inscription');
+        }
       } finally {
         setIsSubmitting(false);
       }
@@ -232,8 +278,7 @@ export default function ProfileDetailsScreen() {
   const handleBack = () => {
     if (step > 1) animateTransition(step - 1);
     else {
-      if (router.canGoBack()) router.back();
-      else router.replace('/(auth)/login');
+      router.replace('/');
     }
   };
 
@@ -330,7 +375,13 @@ export default function ProfileDetailsScreen() {
     if (step === 1) return firstName.trim().length >= 2 && profession.trim().length >= 2 && birthday !== null && gender !== null;
     if (step === 2) return country !== null && region.length > 0;
     if (step === 3) return meetingScope !== null;
-    if (step === 4) return email.trim().length > 0 && /^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(email.trim()) && password.length >= 8 && confirmPassword === password;
+    if (step === 4) {
+      const isEmailValid = email.trim().length > 0 && /^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(email.trim());
+      const isPasswordValid = password.length >= 8 && confirmPassword === password;
+      const cleanPhone = phone.trim().replace(/[\s\-\.\(\)]/g, '');
+      const isPhoneValid = cleanPhone.length >= 8 && /^[0-9+]+$/.test(cleanPhone);
+      return isEmailValid && isPasswordValid && isPhoneValid;
+    }
     return false;
   };
 
@@ -366,17 +417,29 @@ export default function ProfileDetailsScreen() {
         />
       </View>
 
-      {/* Profession */}
+      {/* Profession / Métier */}
       <View style={styles.inputGroup}>
         <Text style={styles.inputLabel}>Profession / Métier *</Text>
-        <TextInput
-          style={styles.input}
-          value={profession}
-          onChangeText={setProfession}
-          placeholder="Ex: Architecte, Développeur, Médecin..."
-          placeholderTextColor={Colors.text.primary40}
-          autoCapitalize="words"
-        />
+        <TouchableOpacity
+          style={styles.selectBtn}
+          onPress={() => setShowProfessionModal(true)}
+          activeOpacity={0.75}
+        >
+          <View style={styles.selectBtnLeft}>
+            <View style={[styles.selectIconWrap, profession ? styles.selectIconWrapActive : null]}>
+              <Briefcase size={17} color={profession ? Colors.primary.red : Colors.text.primary40} />
+            </View>
+            <View style={{ flex: 1 }}>
+              <Text style={[styles.selectBtnTitle, !profession && styles.selectBtnPlaceholder]}>
+                {profession || 'Sélectionner ou rechercher un métier'}
+              </Text>
+              {profession ? (
+                <Text style={styles.selectBtnSub}>Appuyez pour modifier</Text>
+              ) : null}
+            </View>
+          </View>
+          <ChevronRight size={18} color={Colors.text.primary40} />
+        </TouchableOpacity>
       </View>
 
       {/* Genre */}
@@ -653,7 +716,7 @@ export default function ProfileDetailsScreen() {
       </View>
 
       <View style={styles.inputGroup}>
-        <Text style={styles.inputLabel}>Numéro de téléphone</Text>
+        <Text style={styles.inputLabel}>Numéro de téléphone *</Text>
         <View style={styles.phoneInputRow}>
           <TouchableOpacity
             style={styles.dialCodeBtn}
@@ -706,6 +769,12 @@ export default function ProfileDetailsScreen() {
             <Text style={styles.recapVal}>{region}, {country.flag} {country.name}</Text>
           </View>
         )}
+        {phone.trim() ? (
+          <View style={styles.recapRow}>
+            <Text style={styles.recapLabel}>Téléphone</Text>
+            <Text style={styles.recapVal}>{phoneDialCode} {phone.trim()}</Text>
+          </View>
+        ) : null}
         {meetingScope && (
           <View style={styles.recapRow}>
             <Text style={styles.recapLabel}>Rencontres</Text>
@@ -773,6 +842,18 @@ export default function ProfileDetailsScreen() {
             )}
           </LinearGradient>
         </TouchableOpacity>
+
+        {step === 1 && (
+          <TouchableOpacity
+            onPress={() => router.replace('/(auth)/login')}
+            activeOpacity={0.7}
+            style={{ marginTop: 14, alignItems: 'center' }}
+          >
+            <Text style={{ fontSize: 13, color: Colors.primary.red, fontFamily: Typography.fontFamily.medium }}>
+              Vous avez déjà un compte ? <Text style={{ textDecorationLine: 'underline', fontWeight: 'bold' }}>Se connecter</Text>
+            </Text>
+          </TouchableOpacity>
+        )}
       </View>
 
       {/* ── Modal Calendrier ─────────────────────────────────────── */}
@@ -864,6 +945,135 @@ export default function ProfileDetailsScreen() {
             </View>
           </View>
         </View>
+      </Modal>
+
+      {/* ── Modal Métier / Profession ────────────────────────────── */}
+      <Modal visible={showProfessionModal} transparent animationType="slide" onRequestClose={() => setShowProfessionModal(false)}>
+        <KeyboardAvoidingView
+          behavior={Platform.OS === 'ios' ? 'padding' : undefined}
+          style={styles.modalOverlay}
+        >
+          <TouchableOpacity style={{ flex: 1 }} onPress={() => setShowProfessionModal(false)} />
+          <View style={[styles.calendarSheet, { maxHeight: '85%' }]}>
+            <View style={styles.sheetHandle} />
+            <Text style={styles.sheetTitle}>Choisir votre profession</Text>
+            <Text style={styles.sheetSubtitle}>Sélectionnez dans la liste ou tapez votre métier</Text>
+
+            {/* Barre de recherche */}
+            <View style={styles.searchBar}>
+              <Search size={18} color={Colors.text.primary40} />
+              <TextInput
+                style={styles.searchInput}
+                value={professionSearch}
+                onChangeText={setProfessionSearch}
+                placeholder="Rechercher (ex: Développeur, Médecin...)"
+                placeholderTextColor={Colors.text.primary40}
+                autoFocus
+              />
+              {professionSearch.length > 0 && (
+                <TouchableOpacity onPress={() => setProfessionSearch('')} hitSlop={{ top: 8, bottom: 8, left: 8, right: 8 }}>
+                  <X size={16} color={Colors.text.primary40} />
+                </TouchableOpacity>
+              )}
+            </View>
+
+            {/* Option directe d'ajout personnalisé */}
+            {professionSearch.trim().length > 0 && !filteredProfessions.includes(professionSearch.trim()) && (
+              <TouchableOpacity
+                style={styles.customProfessionOption}
+                onPress={() => {
+                  setProfession(professionSearch.trim());
+                  setProfessionSearch('');
+                  setShowProfessionModal(false);
+                }}
+                activeOpacity={0.8}
+              >
+                <View style={styles.customPlusIcon}>
+                  <Plus size={16} color="#FFF" />
+                </View>
+                <Text style={styles.customProfessionText}>
+                  Utiliser <Text style={{ fontWeight: 'bold', color: Colors.primary.red }}>« {professionSearch.trim()} »</Text>
+                </Text>
+              </TouchableOpacity>
+            )}
+
+            <ScrollView style={styles.professionList} showsVerticalScrollIndicator={false} keyboardShouldPersistTaps="handled">
+              {professionSearch.trim().length > 0 ? (
+                // Liste filtrée par la recherche
+                <View style={{ paddingBottom: 24 }}>
+                  {filteredProfessions.map((item) => {
+                    const isSelected = profession === item;
+                    return (
+                      <TouchableOpacity
+                        key={item}
+                        style={[styles.professionItem, isSelected && styles.professionItemActive]}
+                        onPress={() => {
+                          setProfession(item);
+                          setProfessionSearch('');
+                          setShowProfessionModal(false);
+                        }}
+                        activeOpacity={0.7}
+                      >
+                        <Text style={[styles.professionItemText, isSelected && styles.professionItemTextActive]}>
+                          {item}
+                        </Text>
+                        {isSelected && <Check size={18} color={Colors.primary.red} strokeWidth={2.5} />}
+                      </TouchableOpacity>
+                    );
+                  })}
+                  {filteredProfessions.length === 0 && (
+                    <View style={styles.emptyProfessionWrap}>
+                      <Text style={styles.emptyProfessionText}>Ce métier n'est pas dans la liste standard.</Text>
+                      <TouchableOpacity
+                        style={styles.emptyProfessionBtn}
+                        onPress={() => {
+                          setProfession(professionSearch.trim());
+                          setProfessionSearch('');
+                          setShowProfessionModal(false);
+                        }}
+                      >
+                        <Text style={styles.emptyProfessionBtnText}>
+                          Valider « {professionSearch.trim()} »
+                        </Text>
+                      </TouchableOpacity>
+                    </View>
+                  )}
+                </View>
+              ) : (
+                // Liste par catégories avec icônes
+                <View style={{ paddingBottom: 24 }}>
+                  {PROFESSIONS_DATA.map((category) => (
+                    <View key={category.category} style={styles.professionCategoryGroup}>
+                      <View style={styles.professionCategoryHeader}>
+                        <Text style={styles.professionCategoryIcon}>{category.icon}</Text>
+                        <Text style={styles.professionCategoryTitle}>{category.category}</Text>
+                      </View>
+                      {category.items.map((item) => {
+                        const isSelected = profession === item;
+                        return (
+                          <TouchableOpacity
+                            key={item}
+                            style={[styles.professionItem, isSelected && styles.professionItemActive]}
+                            onPress={() => {
+                              setProfession(item);
+                              setShowProfessionModal(false);
+                            }}
+                            activeOpacity={0.7}
+                          >
+                            <Text style={[styles.professionItemText, isSelected && styles.professionItemTextActive]}>
+                              {item}
+                            </Text>
+                            {isSelected && <Check size={18} color={Colors.primary.red} strokeWidth={2.5} />}
+                          </TouchableOpacity>
+                        );
+                      })}
+                    </View>
+                  ))}
+                </View>
+              )}
+            </ScrollView>
+          </View>
+        </KeyboardAvoidingView>
       </Modal>
 
       {/* ── Modal Pays ───────────────────────────────────────────── */}
@@ -1462,5 +1672,146 @@ const styles = StyleSheet.create({
     fontSize: 13,
     color: Colors.text.primary40,
     marginRight: 6,
+  },
+
+  // ── Profession Selector & Modal ──────────────────────────────
+  selectBtn: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    justifyContent: 'space-between',
+    paddingVertical: 12,
+  },
+  selectBtnLeft: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    gap: 12,
+    flex: 1,
+    paddingRight: 10,
+  },
+  selectIconWrap: {
+    width: 36,
+    height: 36,
+    borderRadius: 18,
+    backgroundColor: '#F4F3F1',
+    alignItems: 'center',
+    justifyContent: 'center',
+  },
+  selectIconWrapActive: {
+    backgroundColor: Colors.primary.red + '12',
+  },
+  selectBtnTitle: {
+    fontFamily: Typography.fontFamily.bold,
+    fontSize: 16,
+    color: Colors.text.primary100,
+  },
+  selectBtnPlaceholder: {
+    fontFamily: Typography.fontFamily.regular,
+    fontSize: 15,
+    color: Colors.text.primary40,
+  },
+  selectBtnSub: {
+    fontFamily: Typography.fontFamily.regular,
+    fontSize: 11.5,
+    color: Colors.primary.red,
+    marginTop: 2,
+  },
+  sheetSubtitle: {
+    fontFamily: Typography.fontFamily.regular,
+    fontSize: 13,
+    color: Colors.text.primary70,
+    marginTop: -4,
+    marginBottom: 14,
+  },
+  customProfessionOption: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    gap: 10,
+    paddingVertical: 13,
+    paddingHorizontal: 16,
+    backgroundColor: Colors.primary.red + '08',
+    borderRadius: 14,
+    borderWidth: 1,
+    borderColor: Colors.primary.red + '30',
+    marginBottom: 12,
+  },
+  customPlusIcon: {
+    width: 24,
+    height: 24,
+    borderRadius: 12,
+    backgroundColor: Colors.primary.red,
+    alignItems: 'center',
+    justifyContent: 'center',
+  },
+  customProfessionText: {
+    fontFamily: Typography.fontFamily.medium,
+    fontSize: 14,
+    color: Colors.text.primary100,
+  },
+  professionList: {
+    maxHeight: 420,
+  },
+  professionCategoryGroup: {
+    marginBottom: 18,
+  },
+  professionCategoryHeader: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    gap: 8,
+    paddingVertical: 6,
+    borderBottomWidth: 1,
+    borderBottomColor: Colors.neutral.border + '60',
+    marginBottom: 6,
+  },
+  professionCategoryIcon: {
+    fontSize: 16,
+  },
+  professionCategoryTitle: {
+    fontFamily: Typography.fontFamily.bold,
+    fontSize: 12.5,
+    color: Colors.text.primary70,
+    letterSpacing: 0.5,
+    textTransform: 'uppercase',
+  },
+  professionItem: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    justifyContent: 'space-between',
+    paddingVertical: 12,
+    paddingHorizontal: 8,
+    borderRadius: 10,
+  },
+  professionItemActive: {
+    backgroundColor: Colors.primary.red + '08',
+  },
+  professionItemText: {
+    fontFamily: Typography.fontFamily.regular,
+    fontSize: 14.5,
+    color: Colors.text.primary100,
+  },
+  professionItemTextActive: {
+    fontFamily: Typography.fontFamily.bold,
+    color: Colors.primary.red,
+  },
+  emptyProfessionWrap: {
+    paddingVertical: 24,
+    alignItems: 'center',
+    gap: 12,
+  },
+  emptyProfessionText: {
+    fontFamily: Typography.fontFamily.regular,
+    fontSize: 13.5,
+    color: Colors.text.primary40,
+    textAlign: 'center',
+  },
+  emptyProfessionBtn: {
+    backgroundColor: Colors.primary.red,
+    paddingHorizontal: 18,
+    paddingVertical: 10,
+    borderRadius: 12,
+  },
+  emptyProfessionBtnText: {
+    fontFamily: Typography.fontFamily.bold,
+    fontSize: 13.5,
+    color: '#FFF',
   },
 });

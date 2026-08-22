@@ -9,6 +9,7 @@ import {
   StatusBar,
   Alert,
   ActivityIndicator,
+  Platform,
 } from 'react-native';
 import { useRouter } from 'expo-router';
 import { useEffect, useRef, useState } from 'react';
@@ -17,6 +18,7 @@ import { BlurView } from 'expo-blur';
 import { Colors, Typography, Spacing, BorderRadius } from '@/constants/theme';
 import { AuthService } from '@/services/auth';
 import { useAuth } from '@/context/auth';
+import { ChevronLeft } from 'lucide-react-native';
 
 const { width: SCREEN_WIDTH, height: SCREEN_HEIGHT } = Dimensions.get('window');
 
@@ -83,7 +85,7 @@ export default function SignUpScreen() {
       const result = await AuthService.socialLogin(provider, `token_${socialId}`, mockProfile);
       if (result.access_token) {
         await signIn(result.access_token, result.userId, result.refresh_token);
-        router.replace('/onboarding/value-slides');
+        router.replace('/onboarding/profile-details');
       }
     } catch (error: any) {
       console.error(error);
@@ -158,6 +160,16 @@ export default function SignUpScreen() {
 
       {/* Particules */}
       {PARTICLES.map((p, i) => <Particle key={i} {...p} />)}
+
+      {/* Floating Back Button */}
+      <TouchableOpacity
+        style={styles.floatingBackBtn}
+        onPress={() => router.replace('/')}
+        activeOpacity={0.75}
+        hitSlop={{ top: 10, bottom: 10, left: 10, right: 10 }}
+      >
+        <ChevronLeft size={20} color="#FFFFFF" />
+      </TouchableOpacity>
 
       {/* Contenu centré */}
       <View style={styles.screen}>
@@ -344,6 +356,21 @@ const styles = StyleSheet.create({
   overlay: {
     ...StyleSheet.absoluteFillObject,
     backgroundColor: 'rgba(0,0,0,0.52)',
+  },
+
+  floatingBackBtn: {
+    position: 'absolute',
+    top: Platform.OS === 'ios' ? 52 : 36,
+    left: 20,
+    zIndex: 100,
+    width: 38,
+    height: 38,
+    borderRadius: 19,
+    backgroundColor: 'rgba(0,0,0,0.38)',
+    alignItems: 'center',
+    justifyContent: 'center',
+    borderWidth: 1,
+    borderColor: 'rgba(255,255,255,0.2)',
   },
 
   // Layout principal

@@ -59,11 +59,11 @@ export default function WelcomeScreen() {
               router.replace('/(tabs)/discover');
             } else {
               const moduleToLoad = typeof status.currentModule === 'number' ? status.currentModule : 0;
-              router.replace(`/interview/${moduleToLoad}`);
+              router.replace(`/interview/${moduleToLoad}` as any);
             }
           }
         } catch (e) {
-          if (isMounted) router.replace('/onboarding/value-slides');
+          if (isMounted) router.replace('/interview/0');
         }
       }
     };

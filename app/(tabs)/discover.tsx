@@ -18,6 +18,8 @@ import { Colors, Typography, Spacing, BorderRadius } from '@/constants/theme';
 import { Heart, Sparkles, ChevronRight, RefreshCw, CheckCircle2, AlertTriangle, ShieldCheck, Link2 } from 'lucide-react-native';
 import { useAppContext } from '@/context/AppContext';
 import client from '@/services/api';
+import cacheService from '@/services/cacheService';
+import soundService from '@/services/soundService';
 
 const { width: SCREEN_WIDTH, height: SCREEN_HEIGHT } = Dimensions.get('window');
 
@@ -523,12 +525,21 @@ function DiscoverScreen() {
 
   const hasLikedMe = receivedLikes.length > 0 && currentMatch?.id === receivedLikes[0].userId;
   const existingLike = receivedLikes[0];
+  const hasLoadedRef = useRef(false);
 
-  useFocusEffect(useCallback(() => { initScreen(); }, []));
+  useFocusEffect(
+    useCallback(() => {
+      const isAlreadyLoaded = hasLoadedRef.current || profiles.length > 0 || activeMatch !== null;
+      initScreen(isAlreadyLoaded);
+      hasLoadedRef.current = true;
+    }, [profiles.length, activeMatch])
+  );
 
   const initScreen = async (silent = false) => {
     try {
-      if (!silent) setLoading(true);
+      if (!silent && profiles.length === 0 && !activeMatch) {
+        setLoading(true);
+      }
 
       const matchRes = await client.get('/matching/my-matches');
       const matches: ActiveMatch[] = matchRes.data;
@@ -545,6 +556,9 @@ function DiscoverScreen() {
         firstName: like.firstName ?? like.name ?? 'Utilisateur',
         name: like.name ?? like.firstName ?? 'Utilisateur',
       }));
+      if (likes.length > 0) {
+        soundService.playLikeReceived();
+      }
       setReceivedLikes(likes);
 
       const response = await client.get('/matching/discover');
@@ -639,6 +653,8 @@ function DiscoverScreen() {
   const handleConnect = async () => {
     if (!currentMatch || connecting) return;
     setConnecting(true);
+    soundService.playLikeSent();
+
     if (acceptingProposal) {
       await performAcceptLike(acceptingProposal.id, acceptingProposal.name);
       return;
@@ -655,6 +671,7 @@ function DiscoverScreen() {
       if (response.data.success && response.data.journey) {
         const matchRes = await client.get('/matching/my-matches');
         if (matchRes.data.length > 0) setActiveMatch(matchRes.data[0]);
+        soundService.playMatchCelebration();
         setOverlayMode('success');
       } else {
         closeOverlay();
@@ -685,6 +702,7 @@ function DiscoverScreen() {
       await client.post('/matching/accept', { proposalId });
       const matchRes = await client.get('/matching/my-matches');
       if (matchRes.data.length > 0) setActiveMatch(matchRes.data[0]);
+      soundService.playMatchCelebration();
       setOverlayMode('success');
       setAcceptingProposal(null);
       initScreen();

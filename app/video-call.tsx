@@ -277,7 +277,7 @@ export default function VideoCallScreen() {
           {...(Platform.OS === 'ios'
             ? { mediaCapturePermissionGrantType: 'grant' as const }
             : {})}
-          onPermissionRequest={(event) => {
+          onPermissionRequest={(event: any) => {
             event.grant(event.resources);
           }}
           renderLoading={() => (

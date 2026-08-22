@@ -1,7 +1,7 @@
 import React, { createContext, useState, useContext, useEffect } from 'react';
 import * as SecureStore from 'expo-secure-store';
-import client from '../services/api';
-import { registerForPushNotificationsAsync } from '../services/notifications';
+import client from '@/services/api';
+import { registerForPushNotificationsAsync } from '@/services/notifications';
 
 interface AuthContextType {
   token: string | null;
@@ -43,7 +43,7 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
           
           // Enregistrer le push token de l'appareil
           setTimeout(() => {
-            registerForPushNotificationsAsync().catch((err) => {
+            registerForPushNotificationsAsync().catch((err: any) => {
               console.error('❌ [Auth Context] Failed to register push notifications:', err);
             });
           }, 1000);
@@ -59,18 +59,28 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
     loadToken();
   }, []);
 
-  const signIn = async (newToken: string, newId: string, newRefreshToken?: string) => {
-    await SecureStore.setItemAsync('userToken', newToken);
-    await SecureStore.setItemAsync('userId', newId);
-    if (newRefreshToken) {
-      await SecureStore.setItemAsync('refreshToken', newRefreshToken);
+  const signIn = async (newToken: any, newId: any, newRefreshToken?: any) => {
+    const tokenStr = typeof newToken === 'string' ? newToken : (newToken ? String(newToken) : '');
+    const idStr = typeof newId === 'string' ? newId : (newId ? (typeof newId === 'object' ? (newId.id ? String(newId.id) : String(newId._id || '')) : String(newId)) : '');
+
+    if (tokenStr) {
+      await SecureStore.setItemAsync('userToken', tokenStr);
+      setToken(tokenStr);
     }
-    setToken(newToken);
-    setUserId(newId);
+    if (idStr) {
+      await SecureStore.setItemAsync('userId', idStr);
+      setUserId(idStr);
+    }
+    if (newRefreshToken) {
+      const refreshStr = typeof newRefreshToken === 'string' ? newRefreshToken : String(newRefreshToken);
+      if (refreshStr) {
+        await SecureStore.setItemAsync('refreshToken', refreshStr);
+      }
+    }
 
     // Enregistrer le push token de l'appareil après la connexion
     setTimeout(() => {
-      registerForPushNotificationsAsync().catch((err) => {
+      registerForPushNotificationsAsync().catch((err: any) => {
         console.error('❌ [Auth Context] Failed to register push notifications after signin:', err);
       });
     }, 500);

@@ -21,7 +21,7 @@ import { Colors, Typography, Spacing, BorderRadius } from '@/constants/theme';
 import { AuthService } from '@/services/auth';
 import { InterviewService } from '@/services/interview';
 import { useAuth } from '@/context/auth';
-import { Eye, EyeOff } from 'lucide-react-native';
+import { Eye, EyeOff, ChevronLeft } from 'lucide-react-native';
 
 const { width: SCREEN_WIDTH, height: SCREEN_HEIGHT } = Dimensions.get('window');
 
@@ -134,6 +134,26 @@ export default function LoginScreen() {
     setIsLoading(true);
     try {
       const result = await AuthService.login(email.trim(), password);
+
+      // Si le compte n'est pas encore vérifié par OTP
+      if (result.isVerified === false || (!result.access_token && result.email)) {
+        Alert.alert(
+          'Vérification requise',
+          'Votre compte n\'a pas encore été validé. Un code de confirmation à 4 chiffres vous a été envoyé par e-mail.',
+          [
+            {
+              text: 'Saisir le code →',
+              onPress: () =>
+                router.push({
+                  pathname: '/(auth)/verify',
+                  params: { email: (result.email || email).trim() },
+                }),
+            },
+          ]
+        );
+        return;
+      }
+
       await signIn(result.access_token, result.userId, result.refresh_token);
       
       try {
@@ -211,6 +231,16 @@ export default function LoginScreen() {
 
       {/* Particules */}
       {PARTICLES.map((p, i) => <Particle key={i} {...p} />)}
+
+      {/* Floating Back Button */}
+      <TouchableOpacity
+        style={styles.floatingBackBtn}
+        onPress={() => router.replace('/')}
+        activeOpacity={0.75}
+        hitSlop={{ top: 10, bottom: 10, left: 10, right: 10 }}
+      >
+        <ChevronLeft size={20} color="#FFFFFF" />
+      </TouchableOpacity>
 
       {/* Contenu centré */}
       <KeyboardAvoidingView
@@ -441,6 +471,21 @@ const styles = StyleSheet.create({
   overlay: {
     ...StyleSheet.absoluteFillObject,
     backgroundColor: 'rgba(0,0,0,0.52)',
+  },
+
+  floatingBackBtn: {
+    position: 'absolute',
+    top: Platform.OS === 'ios' ? 52 : 36,
+    left: 20,
+    zIndex: 100,
+    width: 38,
+    height: 38,
+    borderRadius: 19,
+    backgroundColor: 'rgba(0,0,0,0.38)',
+    alignItems: 'center',
+    justifyContent: 'center',
+    borderWidth: 1,
+    borderColor: 'rgba(255,255,255,0.2)',
   },
 
   // Layout principal

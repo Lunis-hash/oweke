@@ -8,6 +8,7 @@ import { LinearGradient } from 'expo-linear-gradient';
 
 import { useAuth } from '@/context/auth';
 import client from '@/services/api';
+import cacheService from '@/services/cacheService';
 import { ActivityIndicator } from 'react-native';
 import { LogOut, Trash2 } from 'lucide-react-native';
 
@@ -31,9 +32,16 @@ export default function ProfileScreen() {
   }, []);
 
   const fetchProfile = async () => {
+    const cached = cacheService.get<any>('user_profile_me', 30000);
+    if (cached) {
+      setProfileData(cached);
+      setLoading(false);
+    }
+
     try {
       const resp = await client.get('/profile/me');
       setProfileData(resp.data);
+      cacheService.set('user_profile_me', resp.data);
     } catch (error) {
       console.error('Failed to fetch profile', error);
     } finally {

@@ -1,18 +1,36 @@
 import axios from 'axios';
 import * as SecureStore from 'expo-secure-store';
+import Constants from 'expo-constants';
 
-// API URL : Backend distant Render par défaut (ou variable EXPO_PUBLIC_API_URL)
-export const API_URL = process.env.EXPO_PUBLIC_API_URL || 'https://boligo-back.onrender.com/api';
+function getDynamicApiUrl(): string {
+  const envUrl = process.env.EXPO_PUBLIC_API_URL;
+  // Si une URL personnalisée ou distante Render est configurée et n'est pas localhost
+  if (envUrl && !envUrl.includes('127.0.0.1') && !envUrl.includes('localhost')) {
+    return envUrl;
+  }
 
+  // Détecter l'IP du PC hôte depuis Expo Go (ex: 192.168.100.8:3000)
+  const hostUri = Constants.expoConfig?.hostUri || (Constants as any).experienceUrl;
+  if (hostUri && typeof hostUri === 'string') {
+    const ip = hostUri.split(':')[0];
+    if (ip && ip !== 'localhost' && ip !== '127.0.0.1') {
+      return `http://${ip}:3000/api`;
+    }
+  }
+
+  return envUrl || 'https://boligo-back.onrender.com/api';
+}
+
+export const API_URL = getDynamicApiUrl();
 export const SOCKET_URL = API_URL.replace(/\/api\/?$/, '');
-console.log('🎯 [API Config] Final API URL:', API_URL);
+console.log('🎯 [API Config] Resolved API URL:', API_URL);
 
 const client = axios.create({
   baseURL: API_URL,
   headers: {
     'Content-Type': 'application/json',
   },
-  timeout: 60000, // 60 seconds timeout (laisse le temps au serveur Render de se réveiller)
+  timeout: 60000,
 });
 
 let isRefreshing = false;
@@ -45,7 +63,7 @@ const setAuthHeader = (headers: any, token: string) => {
 // Intercepteur pour les requêtes
 client.interceptors.request.use(
   async (config) => {
-    console.log('📤 [API Request]', config.method?.toUpperCase(), config.baseURL + config.url);
+    console.log('📤 [API Request]', config.method?.toUpperCase(), (config.baseURL || '') + (config.url || ''));
     const token = await SecureStore.getItemAsync('userToken');
     if (token) {
       setAuthHeader(config.headers, token);

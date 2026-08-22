@@ -22,9 +22,12 @@ export default function RootLayout() {
             }}>
             <Stack.Screen name="index" />
             <Stack.Screen name="onboarding" options={{ headerShown: false }} />
-            <Stack.Screen name="(auth)" />
+            <Stack.Screen name="(auth)" options={{ headerShown: false }} />
             <Stack.Screen name="interview" options={{ headerShown: false }} />
-            <Stack.Screen name="(tabs)" />
+            <Stack.Screen name="profile" options={{ headerShown: false }} />
+            <Stack.Screen name="sondeur" options={{ headerShown: false }} />
+            <Stack.Screen name="video-call" options={{ headerShown: false }} />
+            <Stack.Screen name="(tabs)" options={{ headerShown: false }} />
           </Stack>
         </AppProvider>
         </AuthProvider>

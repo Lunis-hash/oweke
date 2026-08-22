@@ -574,7 +574,7 @@ export default function InterviewSummaryScreen() {
 
                 {/* Métriques */}
                 <View style={styles.modalMetrics}>
-                  {selectedPillar.metrics.map((m) => (
+                  {selectedPillar.metrics.map((m: any) => (
                     <View key={m.label} style={styles.modalMetricRow}>
                       <View style={styles.modalMetricTop}>
                         <Text style={styles.modalMetricLabel}>{m.label}</Text>

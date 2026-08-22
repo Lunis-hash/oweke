@@ -19,10 +19,11 @@ import { useRouter } from 'expo-router';
 import { useFocusEffect } from '@react-navigation/native';
 import { LinearGradient } from 'expo-linear-gradient';
 import { Colors, Typography, Spacing, BorderRadius } from '@/constants/theme';
-import { useAppContext } from '@/context/AppContext';
 import { useAuth } from '@/context/auth';
 import { Mic, Send, Video, MoreVertical, ChevronLeft, Lock, Sparkles, Shield, Heart, Phone, Mail, UserCheck } from 'lucide-react-native';
 import client from '@/services/api';
+import cacheService from '@/services/cacheService';
+import soundService from '@/services/soundService';
 import { moderateOutgoingMessage, maskProfanityForDisplay } from '@/services/chatModeration';
 import {
   connectChatSocket,
@@ -527,6 +528,9 @@ function ChatView({ match, onBack }: { match: Match; onBack: () => void }) {
         const onNew = (raw: ChatSocketMessage) => {
           if (cancelled) return;
           const incoming = mapApiMessageToUi(raw, userId);
+          if (incoming.senderId !== 'me') {
+            soundService.playMessageReceived();
+          }
           setMessages((prev) => {
             const withoutPending = prev.filter(
               (m) =>
@@ -1001,9 +1005,13 @@ export default function MessagesScreen() {
     try {
       if (!silent) setLoading(true);
 
-      // 1. Vérifier l'accès aux messages
-      const accessRes = await client.get('/journey/chat-access');
-      const hasAccess = accessRes.data.canAccess;
+      // 1. Vérifier l'accès aux messages avec cache
+      let hasAccess = cacheService.get<boolean>('chat_access_result', 30000);
+      if (hasAccess === null) {
+        const accessRes = await client.get('/journey/chat-access');
+        hasAccess = !!accessRes.data.canAccess;
+        cacheService.set('chat_access_result', hasAccess);
+      }
       setCanAccess(hasAccess);
 
       if (!hasAccess) {

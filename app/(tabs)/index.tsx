@@ -281,7 +281,7 @@ export default function MatchesScreen() {
   // Charger le journey depuis l'API
   useEffect(() => {
     if (firstMatch?.journeyId) {
-      loadJourney(firstMatch.journeyId);
+      loadJourney(firstMatch.journeyId, dbQuestions.length > 0);
     } else {
       setDbQuestions([]);
       setJourneyId(null);

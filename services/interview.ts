@@ -43,7 +43,7 @@ export const InterviewService = {
     }
   },
 
-  saveModule: async (moduleNumber: number, answers: Record<string, string>, retries = 2) => {
+  saveModule: async (moduleNumber: number, answers: Record<string, string>, retries = 2): Promise<any> => {
     // Module names mapping (Modules 0 à 10)
     const moduleNames = [
       'Filtres non-négociables',
