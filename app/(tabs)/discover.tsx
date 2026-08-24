@@ -9,13 +9,14 @@ import {
   StatusBar,
   Platform,
   ActivityIndicator,
+  PanResponder,
 } from 'react-native';
 import { useState, useRef, useEffect, Component, ReactNode, useCallback } from 'react';
 import { useRouter } from 'expo-router';
 import { useFocusEffect } from '@react-navigation/native';
 import { LinearGradient } from 'expo-linear-gradient';
 import { Colors, Typography, Spacing, BorderRadius } from '@/constants/theme';
-import { Heart, Sparkles, ChevronRight, RefreshCw, CheckCircle2, AlertTriangle, ShieldCheck, Link2 } from 'lucide-react-native';
+import { Heart, Sparkles, ChevronRight, ChevronLeft, RefreshCw, CheckCircle2, AlertTriangle, ShieldCheck, Link2 } from 'lucide-react-native';
 import { useAppContext } from '@/context/AppContext';
 import client from '@/services/api';
 import cacheService from '@/services/cacheService';
@@ -632,15 +633,17 @@ function DiscoverScreen() {
   const cardFade = useRef(new Animated.Value(0)).current;
   const cardSlide = useRef(new Animated.Value(28)).current;
   const overlayAnim = useRef(new Animated.Value(0)).current;
+  const pan = useRef(new Animated.ValueXY()).current;
 
   useEffect(() => {
     if (!currentMatch) return;
+    pan.setValue({ x: 0, y: 0 });
     cardFade.setValue(0);
     cardSlide.setValue(16);
 
     Animated.parallel([
-      Animated.timing(cardFade, { toValue: 1, duration: 250, useNativeDriver: true }),
-      Animated.spring(cardSlide, { toValue: 0, friction: 8, tension: 80, useNativeDriver: true }),
+      Animated.timing(cardFade, { toValue: 1, duration: 220, useNativeDriver: false }),
+      Animated.spring(cardSlide, { toValue: 0, friction: 8, tension: 80, useNativeDriver: false }),
     ]).start();
   }, [profileIndex, profiles.length, activeMatch]);
 
@@ -720,13 +723,60 @@ function DiscoverScreen() {
 
   const handlePass = () => {
     scrollRef.current?.scrollTo({ y: 0, animated: false });
-    Animated.timing(cardFade, { toValue: 0, duration: 100, useNativeDriver: true }).start(() => {
+    Animated.timing(cardFade, { toValue: 0, duration: 100, useNativeDriver: false }).start(() => {
       setProfileIndex(i => {
         const total = profiles.length > 0 ? profiles.length : FALLBACK_PROFILES.length;
         return (i + 1) % total;
       });
     });
   };
+
+  const panResponder = useRef(
+    PanResponder.create({
+      onStartShouldSetPanResponder: () => false,
+      onMoveShouldSetPanResponder: (_, gestureState) =>
+        Math.abs(gestureState.dx) > 15 && Math.abs(gestureState.dx) > Math.abs(gestureState.dy),
+      onPanResponderMove: Animated.event([null, { dx: pan.x, dy: pan.y }], { useNativeDriver: false }),
+      onPanResponderRelease: (_, gestureState) => {
+        if (gestureState.dx > 100) {
+          // Swipe Droite 👉 (Connexion / Like)
+          Animated.timing(pan, {
+            toValue: { x: SCREEN_WIDTH * 1.3, y: gestureState.dy },
+            duration: 180,
+            useNativeDriver: false,
+          }).start(() => {
+            pan.setValue({ x: 0, y: 0 });
+            openOverlay('connect');
+          });
+        } else if (gestureState.dx < -100) {
+          // Swipe Gauche 👈 (Passer / Suivant)
+          Animated.timing(pan, {
+            toValue: { x: -SCREEN_WIDTH * 1.3, y: gestureState.dy },
+            duration: 180,
+            useNativeDriver: false,
+          }).start(() => {
+            pan.setValue({ x: 0, y: 0 });
+            handlePass();
+          });
+        } else {
+          // Retour au centre
+          Animated.spring(pan, {
+            toValue: { x: 0, y: 0 },
+            friction: 6,
+            useNativeDriver: false,
+          }).start();
+        }
+      },
+    })
+  ).current;
+
+  const rotateCard = pan.x.interpolate({
+    inputRange: [-SCREEN_WIDTH / 2, 0, SCREEN_WIDTH / 2],
+    outputRange: ['-10deg', '0deg', '10deg'],
+    extrapolate: 'clamp',
+  });
+
+
 
   if (!loading && !activeMatch && profiles.length === 0 && receivedLikes.length === 0) {
     return (
@@ -809,7 +859,21 @@ function DiscoverScreen() {
         )}
 
         {!loading && (activeMatch || profiles.length > 0) && currentMatch && (
-          <Animated.View style={[styles.profileCard, { opacity: cardFade, transform: [{ translateY: cardSlide }] }]}>
+          <Animated.View
+            {...panResponder.panHandlers}
+            style={[
+              styles.profileCard,
+              {
+                opacity: cardFade,
+                transform: [
+                  { translateY: cardSlide },
+                  { translateX: pan.x },
+                  { translateY: pan.y },
+                  { rotate: rotateCard },
+                ],
+              },
+            ]}
+          >
             
             {/* ── Grande carte anonyme ────────────── */}
             <View style={styles.bigCard}>
@@ -1585,5 +1649,37 @@ const styles = StyleSheet.create({
     padding: Spacing.lg,
     borderWidth: 1,
     borderColor: Colors.neutral.border,
+  },
+  swipeIndicator: {
+    position: 'absolute',
+    top: 30,
+    zIndex: 100,
+    paddingHorizontal: 16,
+    paddingVertical: 8,
+    borderRadius: 12,
+    flexDirection: 'row',
+    alignItems: 'center',
+    gap: 8,
+    elevation: 8,
+    shadowColor: '#000',
+    shadowOffset: { width: 0, height: 4 },
+    shadowOpacity: 0.3,
+    shadowRadius: 6,
+  },
+  likeIndicator: {
+    left: 24,
+    backgroundColor: '#10B981',
+    transform: [{ rotate: '-12deg' }],
+  },
+  passIndicator: {
+    right: 24,
+    backgroundColor: '#EF4444',
+    transform: [{ rotate: '12deg' }],
+  },
+  swipeIndicatorText: {
+    color: '#FFFFFF',
+    fontWeight: '800',
+    fontSize: 14,
+    letterSpacing: 1.5,
   },
 });
