@@ -9,7 +9,6 @@ import {
   StatusBar,
   Platform,
   ActivityIndicator,
-  PanResponder,
 } from 'react-native';
 import { useState, useRef, useEffect, Component, ReactNode, useCallback } from 'react';
 import { useRouter } from 'expo-router';
@@ -633,17 +632,15 @@ function DiscoverScreen() {
   const cardFade = useRef(new Animated.Value(0)).current;
   const cardSlide = useRef(new Animated.Value(28)).current;
   const overlayAnim = useRef(new Animated.Value(0)).current;
-  const pan = useRef(new Animated.ValueXY()).current;
 
   useEffect(() => {
     if (!currentMatch) return;
-    pan.setValue({ x: 0, y: 0 });
     cardFade.setValue(0);
     cardSlide.setValue(16);
 
     Animated.parallel([
-      Animated.timing(cardFade, { toValue: 1, duration: 220, useNativeDriver: false }),
-      Animated.spring(cardSlide, { toValue: 0, friction: 8, tension: 80, useNativeDriver: false }),
+      Animated.timing(cardFade, { toValue: 1, duration: 220, useNativeDriver: true }),
+      Animated.spring(cardSlide, { toValue: 0, friction: 8, tension: 80, useNativeDriver: true }),
     ]).start();
   }, [profileIndex, profiles.length, activeMatch]);
 
@@ -723,58 +720,13 @@ function DiscoverScreen() {
 
   const handlePass = () => {
     scrollRef.current?.scrollTo({ y: 0, animated: false });
-    Animated.timing(cardFade, { toValue: 0, duration: 100, useNativeDriver: false }).start(() => {
+    Animated.timing(cardFade, { toValue: 0, duration: 150, useNativeDriver: true }).start(() => {
       setProfileIndex(i => {
         const total = profiles.length > 0 ? profiles.length : FALLBACK_PROFILES.length;
         return (i + 1) % total;
       });
     });
   };
-
-  const panResponder = useRef(
-    PanResponder.create({
-      onStartShouldSetPanResponder: () => false,
-      onMoveShouldSetPanResponder: (_, gestureState) =>
-        Math.abs(gestureState.dx) > 15 && Math.abs(gestureState.dx) > Math.abs(gestureState.dy),
-      onPanResponderMove: Animated.event([null, { dx: pan.x, dy: pan.y }], { useNativeDriver: false }),
-      onPanResponderRelease: (_, gestureState) => {
-        if (gestureState.dx > 100) {
-          // Swipe Droite 👉 (Connexion / Like)
-          Animated.timing(pan, {
-            toValue: { x: SCREEN_WIDTH * 1.3, y: gestureState.dy },
-            duration: 180,
-            useNativeDriver: false,
-          }).start(() => {
-            pan.setValue({ x: 0, y: 0 });
-            openOverlay('connect');
-          });
-        } else if (gestureState.dx < -100) {
-          // Swipe Gauche 👈 (Passer / Suivant)
-          Animated.timing(pan, {
-            toValue: { x: -SCREEN_WIDTH * 1.3, y: gestureState.dy },
-            duration: 180,
-            useNativeDriver: false,
-          }).start(() => {
-            pan.setValue({ x: 0, y: 0 });
-            handlePass();
-          });
-        } else {
-          // Retour au centre
-          Animated.spring(pan, {
-            toValue: { x: 0, y: 0 },
-            friction: 6,
-            useNativeDriver: false,
-          }).start();
-        }
-      },
-    })
-  ).current;
-
-  const rotateCard = pan.x.interpolate({
-    inputRange: [-SCREEN_WIDTH / 2, 0, SCREEN_WIDTH / 2],
-    outputRange: ['-10deg', '0deg', '10deg'],
-    extrapolate: 'clamp',
-  });
 
 
 
@@ -859,22 +811,20 @@ function DiscoverScreen() {
         )}
 
         {!loading && (activeMatch || profiles.length > 0) && currentMatch && (
-          <Animated.View
-            {...panResponder.panHandlers}
-            style={[
-              styles.profileCard,
-              {
-                opacity: cardFade,
-                transform: [
-                  { translateY: cardSlide },
-                  { translateX: pan.x },
-                  { translateY: pan.y },
-                  { rotate: rotateCard },
-                ],
-              },
-            ]}
-          >
-            
+          <View style={styles.cardWithArrows}>
+            {/* Flèche gauche — Passer */}
+            {!activeMatch && (
+              <TouchableOpacity onPress={handlePass} style={styles.arrowBtn} activeOpacity={0.7}>
+                <ChevronLeft size={26} color={Colors.text.primary40} />
+              </TouchableOpacity>
+            )}
+
+            <Animated.View
+              style={[
+                styles.profileCard,
+                { opacity: cardFade, transform: [{ translateY: cardSlide }] },
+              ]}
+            >
             {/* ── Grande carte anonyme ────────────── */}
             <View style={styles.bigCard}>
               {/* Halos de fond colorés */}
@@ -1146,6 +1096,25 @@ function DiscoverScreen() {
               <View style={{ height: 40 }} />
             </View>
           </Animated.View>
+
+            {/* Flèche droite — Connecter */}
+            {!activeMatch && (
+              <TouchableOpacity
+                onPress={() => {
+                  if (hasLikedMe && existingLike) {
+                    setAcceptingProposal({ id: existingLike.id, name: existingLike.name ?? existingLike.firstName ?? currentMatch.firstName });
+                  } else {
+                    setAcceptingProposal(null);
+                  }
+                  openOverlay('connect');
+                }}
+                style={[styles.arrowBtn, styles.arrowBtnRight]}
+                activeOpacity={0.7}
+              >
+                <ChevronRight size={26} color={Colors.primary.red} />
+              </TouchableOpacity>
+            )}
+          </View>
         )}
 
         {!loading && !activeMatch && profiles.length === 0 && receivedLikes.length === 0 && (
@@ -1681,5 +1650,28 @@ const styles = StyleSheet.create({
     fontWeight: '800',
     fontSize: 14,
     letterSpacing: 1.5,
+  },
+  cardWithArrows: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    width: '100%',
+  },
+  arrowBtn: {
+    width: 40,
+    height: 40,
+    borderRadius: 20,
+    backgroundColor: Colors.neutral.white,
+    alignItems: 'center',
+    justifyContent: 'center',
+    shadowColor: '#000',
+    shadowOffset: { width: 0, height: 2 },
+    shadowOpacity: 0.10,
+    shadowRadius: 6,
+    elevation: 3,
+    marginHorizontal: 4,
+  },
+  arrowBtnRight: {
+    borderColor: Colors.primary.red + '30',
+    borderWidth: 1.5,
   },
 });
