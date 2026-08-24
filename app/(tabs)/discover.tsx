@@ -718,15 +718,27 @@ function DiscoverScreen() {
     }
   };
 
-  const handlePass = () => {
+  const handleNext = () => {
     scrollRef.current?.scrollTo({ y: 0, animated: false });
-    Animated.timing(cardFade, { toValue: 0, duration: 150, useNativeDriver: true }).start(() => {
+    Animated.timing(cardFade, { toValue: 0, duration: 120, useNativeDriver: true }).start(() => {
       setProfileIndex(i => {
         const total = profiles.length > 0 ? profiles.length : FALLBACK_PROFILES.length;
         return (i + 1) % total;
       });
     });
   };
+
+  const handlePrev = () => {
+    scrollRef.current?.scrollTo({ y: 0, animated: false });
+    Animated.timing(cardFade, { toValue: 0, duration: 120, useNativeDriver: true }).start(() => {
+      setProfileIndex(i => {
+        const total = profiles.length > 0 ? profiles.length : FALLBACK_PROFILES.length;
+        return (i - 1 + total) % total;
+      });
+    });
+  };
+
+  const handlePass = handleNext;
 
 
 
@@ -1109,32 +1121,25 @@ function DiscoverScreen() {
         )}
       </ScrollView>
 
-      {/* ── Flèches de navigation FIXES (restent toujours en haut, indépendamment du scroll) ── */}
+      {/* ── Flèches de navigation FIXES (Défiler les profils : Précédent ‹ / Suivant ›) ── */}
       {!loading && (activeMatch || profiles.length > 0) && currentMatch && !activeMatch && (
         <>
-          {/* Flèche gauche — Passer au profil suivant */}
+          {/* Flèche gauche — Profil précédent */}
           <TouchableOpacity
-            onPress={handlePass}
+            onPress={handlePrev}
             style={styles.fixedArrowBtnLeft}
-            activeOpacity={0.8}
+            activeOpacity={0.75}
           >
-            <ChevronLeft size={24} color={Colors.text.primary70} />
+            <ChevronLeft size={26} color={Colors.text.primary70} />
           </TouchableOpacity>
 
-          {/* Flèche droite — Découvrir / Liker */}
+          {/* Flèche droite — Profil suivant */}
           <TouchableOpacity
-            onPress={() => {
-              if (hasLikedMe && existingLike) {
-                setAcceptingProposal({ id: existingLike.id, name: existingLike.name ?? existingLike.firstName ?? currentMatch.firstName });
-              } else {
-                setAcceptingProposal(null);
-              }
-              openOverlay('connect');
-            }}
+            onPress={handleNext}
             style={styles.fixedArrowBtnRight}
-            activeOpacity={0.8}
+            activeOpacity={0.75}
           >
-            <ChevronRight size={24} color={Colors.primary.red} />
+            <ChevronRight size={26} color={Colors.text.primary70} />
           </TouchableOpacity>
         </>
       )}
@@ -1691,7 +1696,7 @@ const styles = StyleSheet.create({
     shadowOpacity: 0.2,
     shadowRadius: 8,
     elevation: 8,
-    borderWidth: 1.5,
-    borderColor: Colors.primary.red + '50',
+    borderWidth: 1,
+    borderColor: 'rgba(0,0,0,0.08)',
   },
 });
