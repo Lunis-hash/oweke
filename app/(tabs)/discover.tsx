@@ -811,20 +811,12 @@ function DiscoverScreen() {
         )}
 
         {!loading && (activeMatch || profiles.length > 0) && currentMatch && (
-          <View style={styles.cardWithArrows}>
-            {/* Flèche gauche — Passer */}
-            {!activeMatch && (
-              <TouchableOpacity onPress={handlePass} style={styles.arrowBtn} activeOpacity={0.7}>
-                <ChevronLeft size={26} color={Colors.text.primary40} />
-              </TouchableOpacity>
-            )}
-
-            <Animated.View
-              style={[
-                styles.profileCard,
-                { opacity: cardFade, transform: [{ translateY: cardSlide }] },
-              ]}
-            >
+          <Animated.View
+            style={[
+              styles.profileCard,
+              { opacity: cardFade, transform: [{ translateY: cardSlide }] },
+            ]}
+          >
             {/* ── Grande carte anonyme ────────────── */}
             <View style={styles.bigCard}>
               {/* Halos de fond colorés */}
@@ -1096,25 +1088,6 @@ function DiscoverScreen() {
               <View style={{ height: 40 }} />
             </View>
           </Animated.View>
-
-            {/* Flèche droite — Connecter */}
-            {!activeMatch && (
-              <TouchableOpacity
-                onPress={() => {
-                  if (hasLikedMe && existingLike) {
-                    setAcceptingProposal({ id: existingLike.id, name: existingLike.name ?? existingLike.firstName ?? currentMatch.firstName });
-                  } else {
-                    setAcceptingProposal(null);
-                  }
-                  openOverlay('connect');
-                }}
-                style={[styles.arrowBtn, styles.arrowBtnRight]}
-                activeOpacity={0.7}
-              >
-                <ChevronRight size={26} color={Colors.primary.red} />
-              </TouchableOpacity>
-            )}
-          </View>
         )}
 
         {!loading && !activeMatch && profiles.length === 0 && receivedLikes.length === 0 && (
@@ -1135,6 +1108,36 @@ function DiscoverScreen() {
           </View>
         )}
       </ScrollView>
+
+      {/* ── Flèches de navigation FIXES (restent toujours en haut, indépendamment du scroll) ── */}
+      {!loading && (activeMatch || profiles.length > 0) && currentMatch && !activeMatch && (
+        <>
+          {/* Flèche gauche — Passer au profil suivant */}
+          <TouchableOpacity
+            onPress={handlePass}
+            style={styles.fixedArrowBtnLeft}
+            activeOpacity={0.8}
+          >
+            <ChevronLeft size={24} color={Colors.text.primary70} />
+          </TouchableOpacity>
+
+          {/* Flèche droite — Découvrir / Liker */}
+          <TouchableOpacity
+            onPress={() => {
+              if (hasLikedMe && existingLike) {
+                setAcceptingProposal({ id: existingLike.id, name: existingLike.name ?? existingLike.firstName ?? currentMatch.firstName });
+              } else {
+                setAcceptingProposal(null);
+              }
+              openOverlay('connect');
+            }}
+            style={styles.fixedArrowBtnRight}
+            activeOpacity={0.8}
+          >
+            <ChevronRight size={24} color={Colors.primary.red} />
+          </TouchableOpacity>
+        </>
+      )}
 
       {/* OVERLAYS */}
       {overlayMode !== 'none' && (
@@ -1651,27 +1654,44 @@ const styles = StyleSheet.create({
     fontSize: 14,
     letterSpacing: 1.5,
   },
-  cardWithArrows: {
-    flexDirection: 'row',
-    alignItems: 'center',
-    width: '100%',
-  },
-  arrowBtn: {
-    width: 40,
-    height: 40,
-    borderRadius: 20,
-    backgroundColor: Colors.neutral.white,
+  fixedArrowBtnLeft: {
+    position: 'absolute',
+    top: '50%',
+    transform: [{ translateY: -24 }],
+    left: 10,
+    zIndex: 99,
+    width: 48,
+    height: 48,
+    borderRadius: 24,
+    backgroundColor: 'rgba(255, 255, 255, 0.96)',
     alignItems: 'center',
     justifyContent: 'center',
     shadowColor: '#000',
-    shadowOffset: { width: 0, height: 2 },
-    shadowOpacity: 0.10,
-    shadowRadius: 6,
-    elevation: 3,
-    marginHorizontal: 4,
+    shadowOffset: { width: 0, height: 3 },
+    shadowOpacity: 0.2,
+    shadowRadius: 8,
+    elevation: 8,
+    borderWidth: 1,
+    borderColor: 'rgba(0,0,0,0.08)',
   },
-  arrowBtnRight: {
-    borderColor: Colors.primary.red + '30',
+  fixedArrowBtnRight: {
+    position: 'absolute',
+    top: '50%',
+    transform: [{ translateY: -24 }],
+    right: 10,
+    zIndex: 99,
+    width: 48,
+    height: 48,
+    borderRadius: 24,
+    backgroundColor: 'rgba(255, 255, 255, 0.96)',
+    alignItems: 'center',
+    justifyContent: 'center',
+    shadowColor: '#000',
+    shadowOffset: { width: 0, height: 3 },
+    shadowOpacity: 0.2,
+    shadowRadius: 8,
+    elevation: 8,
     borderWidth: 1.5,
+    borderColor: Colors.primary.red + '50',
   },
 });
