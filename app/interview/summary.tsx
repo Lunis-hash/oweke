@@ -62,14 +62,14 @@ const DEFAULT_PILLARS = [
     emoji: '💬',
     label: 'Communication & Conflits',
     tagline: 'Votre manière de dialoguer et désamorcer',
-    percentage: 85,
+    percentage: 91,
     color: Colors.primary.purple,
     pastel: 'rgba(124, 92, 232, 0.08)',
     description: 'Vous privilégiez l\'écoute active et la sincérité, en évitant les non-dits et le silence pesant dans le couple.',
     metrics: [
-      { label: 'Écoute active', value: 90 },
+      { label: 'Écoute active', value: 93 },
       { label: 'Transparence', value: 94 },
-      { label: 'Résolution calme', value: 86 },
+      { label: 'Résolution calme', value: 89 },
     ],
   },
   {
@@ -77,13 +77,13 @@ const DEFAULT_PILLARS = [
     emoji: '💰',
     label: 'Économie & Responsabilités',
     tagline: 'Votre rapport à l\'argent et au foyer',
-    percentage: 82,
+    percentage: 86,
     color: '#D9AE3C',
     pastel: 'rgba(217, 174, 60, 0.08)',
     description: 'Vous abordez la gestion financière avec responsabilité, équité et transparence au sein du couple.',
     metrics: [
       { label: 'Transparence', value: 88 },
-      { label: 'Équité & soutien', value: 85 },
+      { label: 'Équité & soutien', value: 89 },
       { label: 'Projets communs', value: 90 },
     ],
   },
@@ -236,7 +236,7 @@ export default function InterviewSummaryScreen() {
   const [activeIndex, setActiveIndex]   = useState(0);
   const [pillars, setPillars]           = useState<any[]>(DEFAULT_PILLARS);
   const [selectedPillar, setSelectedPillar] = useState<any | null>(null);
-  const [globalScore, setGlobalScore]   = useState(88);
+  const [globalScore, setGlobalScore]   = useState(92);
   const [synthesisText, setSynthesisText] = useState('');
   const [keyValues, setKeyValues]       = useState<string[]>([]);
   const [needsList, setNeedsList]       = useState<string[]>([]);

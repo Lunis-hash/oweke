@@ -123,7 +123,7 @@ function mapApiMatchToMatch(apiMatch: any, userId: string): Match {
     name: apiMatch.name || 'Utilisateur',
     avatarLetter: (apiMatch.name || 'U').charAt(0).toUpperCase(),
     phase: apiMatch.phase === 'sondeur' ? 'harmonie' : apiMatch.phase === 'contacts' ? 'contacts' : apiMatch.phase,
-    harmonyScore: apiMatch.compatibility || 85,
+    harmonyScore: apiMatch.compatibility || (79 + (String(apiMatch.id || '').charCodeAt(0) % 17)),
     whyMatch: apiMatch.slogan || 'Compatibilité basée sur vos valeurs communes.',
     phaseDay,
     totalDays: 3,
@@ -1142,7 +1142,7 @@ export default function MessagesScreen() {
 const styles = StyleSheet.create({
   // ── LIST ──
   listContainer: { flex: 1, backgroundColor: Colors.neutral.white },
-  listHeader: { paddingTop: Spacing.xxl + Spacing.md, paddingHorizontal: Spacing.lg, paddingBottom: Spacing.sm, flexDirection: 'row', justifyContent: 'space-between', alignItems: 'center' },
+  listHeader: { paddingTop: Platform.OS === 'ios' ? 58 : 48, paddingHorizontal: Spacing.lg, paddingBottom: Spacing.sm, flexDirection: 'row', justifyContent: 'space-between', alignItems: 'center' },
   listTitle: { fontSize: 28, fontFamily: Typography.fontFamily.bold, color: Colors.text.primary100, letterSpacing: -0.5 },
 
   tabsScroll: { flexGrow: 0 },

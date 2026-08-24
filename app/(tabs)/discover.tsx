@@ -175,7 +175,7 @@ const FALLBACK_PROFILES: MatchProfile[] = [
       { id: 'valeurs', label: 'Valeurs & croyances', emoji: '💎', value: 90, color: '#10B981' },
       { id: 'projet', label: 'Projet de vie', emoji: '🌱', value: 92, color: '#10B981' },
       { id: 'com', label: 'Communication dans le couple', emoji: '💬', value: 88, color: '#10B981' },
-      { id: 'foyer', label: 'Finances & gestion du foyer', emoji: '💰', value: 85, color: '#10B981' },
+      { id: 'foyer', label: 'Finances & gestion du foyer', emoji: '💰', value: 89, color: '#10B981' },
       { id: 'sexe', label: 'Sexualité & intimité', emoji: '🔥', value: 79, color: '#F59E0B' },
     ],
   },
@@ -526,13 +526,14 @@ function DiscoverScreen() {
   const hasLikedMe = receivedLikes.length > 0 && currentMatch?.id === receivedLikes[0].userId;
   const existingLike = receivedLikes[0];
   const hasLoadedRef = useRef(false);
+  const prevLikesCountRef = useRef(0);
 
   useFocusEffect(
     useCallback(() => {
-      const isAlreadyLoaded = hasLoadedRef.current || profiles.length > 0 || activeMatch !== null;
+      const isAlreadyLoaded = hasLoadedRef.current;
       initScreen(isAlreadyLoaded);
       hasLoadedRef.current = true;
-    }, [profiles.length, activeMatch])
+    }, [])
   );
 
   const initScreen = async (silent = false) => {
@@ -542,7 +543,7 @@ function DiscoverScreen() {
       }
 
       const matchRes = await client.get('/matching/my-matches');
-      const matches: ActiveMatch[] = matchRes.data;
+      const matches: ActiveMatch[] = matchRes.data ?? [];
 
       if (matches.length > 0) {
         setActiveMatch(matches[0]);
@@ -556,9 +557,12 @@ function DiscoverScreen() {
         firstName: like.firstName ?? like.name ?? 'Utilisateur',
         name: like.name ?? like.firstName ?? 'Utilisateur',
       }));
-      if (likes.length > 0) {
+
+      // Ne jouer le son QUE si un NOUVEAU like est effectivement reçu
+      if (likes.length > prevLikesCountRef.current && prevLikesCountRef.current > 0) {
         soundService.playLikeReceived();
       }
+      prevLikesCountRef.current = likes.length;
       setReceivedLikes(likes);
 
       const response = await client.get('/matching/discover');
@@ -1174,7 +1178,7 @@ const styles = StyleSheet.create({
 
   header: {
     flexDirection: 'row', justifyContent: 'space-between', alignItems: 'center',
-    paddingTop: Platform.OS === 'ios' ? 60 : 44,
+    paddingTop: Platform.OS === 'ios' ? 58 : 48,
     paddingHorizontal: Spacing.xl, paddingBottom: Spacing.md,
     backgroundColor: Colors.neutral.white,
     borderBottomWidth: 1, borderBottomColor: Colors.neutral.border,

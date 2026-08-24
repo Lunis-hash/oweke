@@ -244,7 +244,10 @@ function pickActiveMatch(matches: any[]) {
 export default function MatchesScreen() {
   const router = useRouter();
   const insets = useSafeAreaInsets();
-  const topPadding = Platform.OS === 'ios' ? insets.top + 6 : Math.max(insets.top, 14);
+  const topPadding = Math.max(
+    (insets.top || StatusBar.currentHeight || 0) + (Platform.OS === 'ios' ? 10 : 16),
+    Platform.OS === 'ios' ? 56 : 48
+  );
   const bottomPadding = Math.max(insets.bottom + 20, 32);
 
   const { credits, matches, loadMatches } = useAppContext();
@@ -486,7 +489,7 @@ export default function MatchesScreen() {
     return (
       <View style={styles.container}>
         <StatusBar barStyle="dark-content" backgroundColor={Colors.neutral.white} />
-        <View style={styles.header}>
+        <View style={[styles.header, { paddingTop: topPadding }]}>
           <Text style={styles.headerTitle}>Mes matchs</Text>
         </View>
         <View style={styles.emptyWrap}>
