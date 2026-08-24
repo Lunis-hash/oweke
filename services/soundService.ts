@@ -1,13 +1,24 @@
 import * as Haptics from 'expo-haptics';
 import { Platform } from 'react-native';
+import { Audio } from 'expo-av';
+
+// Sons haute qualité légers (CDN Cloudflare)
+const SOUND_EFFECTS: Record<string, string> = {
+  likeSent: 'https://assets.mixkit.co/active_storage/sfx/2571/2571-preview.mp3', // Soft pop / chime
+  likeReceived: 'https://assets.mixkit.co/active_storage/sfx/2869/2869-preview.mp3', // Gentle bell chime
+  match: 'https://assets.mixkit.co/active_storage/sfx/1435/1435-preview.mp3', // Magical harp chime
+  option: 'https://assets.mixkit.co/active_storage/sfx/2568/2568-preview.mp3', // Subtle click
+  message: 'https://assets.mixkit.co/active_storage/sfx/2354/2354-preview.mp3', // Message ping
+};
 
 /**
  * Service centralisé pour les retours sonores et vibrations (Soft Audio & Haptic Feedback).
- * Conçu pour offrir des sons très doux et apaisants lors des interactions clés.
+ * Fonctionne à 100% sur Mobile (iOS/Android via expo-av) et sur Web.
  */
 class SoundService {
   private isSoundEnabled: boolean = true;
   private isHapticsEnabled: boolean = true;
+  private isAudioConfigured: boolean = false;
 
   constructor() {
     this.configureAudioSession();
@@ -15,16 +26,18 @@ class SoundService {
 
   private async configureAudioSession() {
     try {
-      const { Audio } = require('expo-av');
-      if (Audio) {
+      if (Platform.OS !== 'web') {
         await Audio.setAudioModeAsync({
           playsInSilentModeIOS: true,
+          allowsRecordingIOS: false,
           staysActiveInBackground: false,
           shouldDuckAndroid: true,
+          playThroughEarpieceAndroid: false,
         });
+        this.isAudioConfigured = true;
       }
     } catch (e) {
-      // Ignore si expo-av n'est pas encore initialisé
+      console.log('⚠️ [SoundService] Erreur config audio session:', e);
     }
   }
 
@@ -43,8 +56,37 @@ class SoundService {
   }
 
   /**
-   * Génère un son doux synthétique (Web/Mobile) via Web Audio API si disponible,
-   * garantissant un fonctionnement 100% autonome sans fichiers mp3 lourds.
+   * Joue un son natif via expo-av (Android / iOS)
+   */
+  private async playNativeSound(soundKey: string, volume: number = 0.8) {
+    if (!this.isSoundEnabled) return;
+
+    try {
+      if (!this.isAudioConfigured) {
+        await this.configureAudioSession();
+      }
+
+      const soundUri = SOUND_EFFECTS[soundKey];
+      if (!soundUri) return;
+
+      const { sound } = await Audio.Sound.createAsync(
+        { uri: soundUri },
+        { shouldPlay: true, volume }
+      );
+
+      sound.setOnPlaybackStatusUpdate((status) => {
+        if (status.isLoaded && status.didJustFinish) {
+          sound.unloadAsync().catch(() => {});
+        }
+      });
+    } catch (err) {
+      // Fallback synthétiseur web si erreur de lecture
+      this.playSoftTone([523, 659, 880], 250);
+    }
+  }
+
+  /**
+   * Synthétiseur Web Audio API de secours (Web)
    */
   private playSoftTone(frequencies: number[], durationMs: number = 300, type: OscillatorType = 'sine') {
     if (!this.isSoundEnabled) return;
@@ -53,34 +95,30 @@ class SoundService {
       try {
         const AudioCtx = window.AudioContext || (window as any).webkitAudioContext;
         const ctx = new AudioCtx();
-        
+
         frequencies.forEach((freq, index) => {
           const osc = ctx.createOscillator();
           const gain = ctx.createGain();
-          
+
           osc.type = type;
           osc.frequency.setValueAtTime(freq, ctx.currentTime + index * 0.08);
-          
-          // Enveloppe d'attaque et d'extinction douce (Soft Attack & Release)
+
           gain.gain.setValueAtTime(0.01, ctx.currentTime + index * 0.08);
-          gain.gain.exponentialRampToValueAtTime(0.15, ctx.currentTime + index * 0.08 + 0.04);
+          gain.gain.exponentialRampToValueAtTime(0.18, ctx.currentTime + index * 0.08 + 0.04);
           gain.gain.exponentialRampToValueAtTime(0.001, ctx.currentTime + index * 0.08 + (durationMs / 1000));
-          
+
           osc.connect(gain);
           gain.connect(ctx.destination);
-          
+
           osc.start(ctx.currentTime + index * 0.08);
           osc.stop(ctx.currentTime + index * 0.08 + (durationMs / 1000) + 0.1);
         });
-      } catch (e) {
-        // Fallback silencieux
-      }
+      } catch (e) {}
     }
   }
 
   /**
    * 1. Déclenché lors de l'envoi d'un Like / Connexion
-   * Son : Marimba doux montant (Mi -> La) + Vibration moyenne
    */
   async playLikeSent() {
     if (this.isHapticsEnabled) {
@@ -88,13 +126,16 @@ class SoundService {
         await Haptics.impactAsync(Haptics.ImpactFeedbackStyle.Medium);
       } catch (e) {}
     }
-    // Féquences E5 (659Hz) -> A5 (880Hz)
-    this.playSoftTone([659.25, 880], 250, 'sine');
+
+    if (Platform.OS !== 'web') {
+      await this.playNativeSound('likeSent', 0.85);
+    } else {
+      this.playSoftTone([659.25, 880], 250, 'sine');
+    }
   }
 
   /**
    * 2. Déclenché lorsqu'un nouveau Like est reçu
-   * Son : Double carillon apaisant (Do -> Sol) + Double pulsation
    */
   async playLikeReceived() {
     if (this.isHapticsEnabled) {
@@ -102,13 +143,16 @@ class SoundService {
         await Haptics.notificationAsync(Haptics.NotificationFeedbackType.Success);
       } catch (e) {}
     }
-    // Fréquences C6 (1046Hz) -> G5 (783Hz)
-    this.playSoftTone([1046.50, 783.99], 350, 'sine');
+
+    if (Platform.OS !== 'web') {
+      await this.playNativeSound('likeReceived', 0.9);
+    } else {
+      this.playSoftTone([1046.50, 783.99], 350, 'sine');
+    }
   }
 
   /**
    * 3. Déclenché lors d'un Match / Célébration Harmonie
-   * Son : Arpeggio de Harpe élégant (Do -> Mi -> Sol -> Do octave) + Vibration d'impact fort
    */
   async playMatchCelebration() {
     if (this.isHapticsEnabled) {
@@ -116,13 +160,16 @@ class SoundService {
         await Haptics.impactAsync(Haptics.ImpactFeedbackStyle.Heavy);
       } catch (e) {}
     }
-    // Arpeggio C5 (523Hz) -> E5 (659Hz) -> G5 (783Hz) -> C6 (1046Hz)
-    this.playSoftTone([523.25, 659.25, 783.99, 1046.50], 500, 'sine');
+
+    if (Platform.OS !== 'web') {
+      await this.playNativeSound('match', 1.0);
+    } else {
+      this.playSoftTone([523.25, 659.25, 783.99, 1046.50], 500, 'sine');
+    }
   }
 
   /**
-   * 4. Déclenché lors du clic sur un bouton ou choix d'option QCM
-   * Son : Pop discret + Haptic Light
+   * 4. Déclenché lors du clic sur un bouton / choix d'option
    */
   async playOptionSelect() {
     if (this.isHapticsEnabled) {
@@ -130,12 +177,16 @@ class SoundService {
         await Haptics.impactAsync(Haptics.ImpactFeedbackStyle.Light);
       } catch (e) {}
     }
-    this.playSoftTone([440], 100, 'triangle');
+
+    if (Platform.OS !== 'web') {
+      await this.playNativeSound('option', 0.5);
+    } else {
+      this.playSoftTone([440], 100, 'triangle');
+    }
   }
 
   /**
    * 5. Déclenché à la réception d'un message instantané
-   * Son : Carillon très léger
    */
   async playMessageReceived() {
     if (this.isHapticsEnabled) {
@@ -143,7 +194,12 @@ class SoundService {
         await Haptics.selectionAsync();
       } catch (e) {}
     }
-    this.playSoftTone([587.33, 880], 200, 'sine');
+
+    if (Platform.OS !== 'web') {
+      await this.playNativeSound('message', 0.8);
+    } else {
+      this.playSoftTone([587.33, 880], 200, 'sine');
+    }
   }
 }
 
