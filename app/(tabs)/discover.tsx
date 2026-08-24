@@ -120,7 +120,7 @@ const FALLBACK_PROFILES: MatchProfile[] = [
       { label: 'Famille', common: true },
       { label: 'Foi & spiritualité', common: true },
       { label: 'Honnêteté', common: true },
-      { label: 'Voyage', common: false },
+      { label: 'Projets de vie', common: false },
       { label: 'Cuisine', common: false },
       { label: 'Développement personnel', common: true },
       { label: 'Lecture', common: false },
@@ -151,7 +151,7 @@ const FALLBACK_PROFILES: MatchProfile[] = [
     slogan: 'Construire quelque chose de durable, ensemble.',
     aiAnalysis: "Thomas est un profil **très orienté projet**. Il aime structurer son avenir tout en gardant une place importante pour la **spontanéité et la découverte**. Très attaché à l'équilibre vie pro / vie perso.",
     positivePoints: [
-      "Vous partagez un **fort attrait pour les voyages** et la découverte de nouvelles cultures.",
+      "Vous partagez une **vision commune sur les projets d'avenir** et la construction d'un foyer stable.",
       "**L'équilibre financier** semble très aligné entre vous deux."
     ],
     details: {
@@ -162,13 +162,13 @@ const FALLBACK_PROFILES: MatchProfile[] = [
       lifestyle: 'Urbain, très actif'
     },
     interests: [
-      { label: 'Voyage', common: true },
+      { label: 'Entrepreneuriat & Projets', common: true },
       { label: 'Sport', common: true },
       { label: 'Art & Design', common: false },
     ],
-    threeWords: ['Créatif', 'Structuré', 'Aventurier'],
+    threeWords: ['Créatif', 'Structuré', 'Bâtisseur'],
     expectations: [
-      { icon: '🌍', text: "Un/une partenaire de vie pour **parcourir le monde** et s'inspirer." },
+      { icon: '🏡', text: "Un/une partenaire de vie pour **construire un avenir solide** et s'élever mutuellement." },
       { icon: '⚖️', text: "Une relation basée sur **l'égalité et le partage des tâches**." }
     ],
     mentalMap: [
