@@ -21,6 +21,8 @@ import { Colors, Typography, Spacing, BorderRadius } from '@/constants/theme';
 import { useAppContext } from '@/context/AppContext';
 import { useAuth } from '@/context/auth';
 import client from '@/services/api';
+import cacheService from '@/services/cacheService';
+import soundService from '@/services/soundService';
 import {
   Heart,
   Check,
@@ -281,10 +283,72 @@ export default function MatchesScreen() {
     }, []),
   );
 
-  // Charger le journey depuis l'API
+  // Appliquer les données du parcours instantanément
+  const applyJourneyData = (status: any, questions: any[]) => {
+    setDbQuestions(questions);
+
+    // Si le parcours est fini (chat_libre ou plus)
+    if (status.currentStep !== 'phase_harmonie') {
+      setAnsweredDays([1, 2, 3]);
+      const myAns: Record<string, string> = {};
+      const partnerAns: Record<string, string> = {};
+      questions.forEach((q: any) => {
+        q.responses?.forEach((r: any) => {
+          if (r.userId === userId) myAns[q.id] = r.responseText;
+          else partnerAns[q.id] = r.responseText;
+        });
+      });
+      setUserAnswers(myAns);
+      setPartnerAnswers(partnerAns);
+      setRevealedKeys(Object.keys(partnerAns));
+    } else {
+      // Calculer les jours déjà répondus
+      const myAns: Record<string, string> = {};
+      const partnerAns: Record<string, string> = {};
+      const daysAnswered = new Set<number>();
+
+      questions.forEach((q: any) => {
+        const myResponse = q.responses?.find((r: any) => r.userId === userId);
+        const partnerResponse = q.responses?.find((r: any) => r.userId !== userId);
+        if (myResponse) {
+          myAns[q.id] = myResponse.responseText;
+        }
+        if (partnerResponse) {
+          partnerAns[q.id] = partnerResponse.responseText;
+        }
+      });
+
+      setUserAnswers(myAns);
+      setPartnerAnswers(partnerAns);
+
+      // Déterminer quels jours sont complétés
+      for (let day = 1; day <= 3; day++) {
+        const dayQuestions = questions.filter((q: any) => q.day === day);
+        const allAnswered = dayQuestions.every((q: any) =>
+          q.responses?.some((r: any) => r.userId === userId)
+        );
+        if (allAnswered && dayQuestions.length > 0) {
+          daysAnswered.add(day);
+        }
+      }
+      setAnsweredDays(Array.from(daysAnswered).sort());
+      setCurrentDay(Math.min(3, Array.from(daysAnswered).length + 1));
+
+      // Révéler les réponses du partenaire pour les jours déjà répondus
+      setRevealedKeys(Object.keys(partnerAns));
+    }
+  };
+
+  // Charger le journey depuis l'API ou le cache instantané
   useEffect(() => {
     if (firstMatch?.journeyId) {
-      loadJourney(firstMatch.journeyId, dbQuestions.length > 0);
+      setJourneyId(firstMatch.journeyId);
+      const cached = cacheService.peek<any>(`journey_${firstMatch.journeyId}`);
+      if (cached) {
+        applyJourneyData(cached.status, cached.questions);
+        setLoading(false);
+      }
+      loadJourney(firstMatch.journeyId, !!cached);
     } else {
       setDbQuestions([]);
       setJourneyId(null);
@@ -314,7 +378,7 @@ export default function MatchesScreen() {
 
   const loadJourney = async (jId: string, silent = false) => {
     try {
-      if (!silent) setLoading(true);
+      if (!silent && dbQuestions.length === 0) setLoading(true);
       setJourneyId(jId);
 
       const [statusRes, questionsRes] = await Promise.all([
@@ -324,59 +388,8 @@ export default function MatchesScreen() {
 
       const status = statusRes.data;
       const questions = questionsRes.data;
-      setDbQuestions(questions);
-
-      // Si le parcours est fini (chat_libre ou plus)
-      if (status.currentStep !== 'phase_harmonie') {
-        setAnsweredDays([1, 2, 3]);
-        // Charger toutes les réponses
-        const myAns: Record<string, string> = {};
-        const partnerAns: Record<string, string> = {};
-        questions.forEach((q: any) => {
-          q.responses?.forEach((r: any) => {
-            if (r.userId === userId) myAns[q.id] = r.responseText;
-            else partnerAns[q.id] = r.responseText;
-          });
-        });
-        setUserAnswers(myAns);
-        setPartnerAnswers(partnerAns);
-        setRevealedKeys(Object.keys(partnerAns));
-      } else {
-        // Calculer les jours déjà répondus
-        const myAns: Record<string, string> = {};
-        const partnerAns: Record<string, string> = {};
-        const daysAnswered = new Set<number>();
-
-        questions.forEach((q: any) => {
-          const myResponse = q.responses?.find((r: any) => r.userId === userId);
-          const partnerResponse = q.responses?.find((r: any) => r.userId !== userId);
-          if (myResponse) {
-            myAns[q.id] = myResponse.responseText;
-          }
-          if (partnerResponse) {
-            partnerAns[q.id] = partnerResponse.responseText;
-          }
-        });
-
-        setUserAnswers(myAns);
-        setPartnerAnswers(partnerAns);
-
-        // Déterminer quels jours sont complétés
-        for (let day = 1; day <= 3; day++) {
-          const dayQuestions = questions.filter((q: any) => q.day === day);
-          const allAnswered = dayQuestions.every((q: any) =>
-            q.responses?.some((r: any) => r.userId === userId)
-          );
-          if (allAnswered && dayQuestions.length > 0) {
-            daysAnswered.add(day);
-          }
-        }
-        setAnsweredDays(Array.from(daysAnswered).sort());
-        setCurrentDay(Math.min(3, Array.from(daysAnswered).length + 1));
-
-        // Révéler les réponses du partenaire pour les jours déjà répondus
-        setRevealedKeys(Object.keys(partnerAns));
-      }
+      cacheService.set(`journey_${jId}`, { status, questions });
+      applyJourneyData(status, questions);
     } catch (e) {
       console.error('Failed to load journey:', e);
     } finally {
@@ -398,13 +411,12 @@ export default function MatchesScreen() {
   const currentDbQ = dayDbQuestions[qIndex];
   const dayData = SONDEUR_DAYS[currentDay - 1];
   const dayThemeMeta = dayThemes.find((d) => d.day === currentDay);
-  // Avec un parcours actif : uniquement les questions serveur (pas le mock local → évite "2 fois")
+  
+  // Toujours disponible immédiatement (Zéro écran blanc)
   const questionsForDay =
     dayDbQuestions.length > 0
       ? dayDbQuestions
-      : firstMatch?.journeyId
-        ? []
-        : dayData?.questions ?? [];
+      : dayData?.questions ?? [];
   const totalQuestionsToday = questionsForDay.length;
   const currentQ =
     currentDbQ
@@ -413,7 +425,14 @@ export default function MatchesScreen() {
         question: currentDbQ.questionText,
         options: (currentDbQ.options as string[]) ?? [],
       }
-      : null;
+      : dayData?.questions[qIndex]
+        ? {
+          key: dayData.questions[qIndex].key,
+          question: dayData.questions[qIndex].question,
+          options: dayData.questions[qIndex].options,
+        }
+        : null;
+
   const sondeurInProgress =
     firstMatch?.phase === 'sondeur' || firstMatch?.phase === 'harmonie';
   const allDone =
@@ -436,6 +455,7 @@ export default function MatchesScreen() {
     const answer = customText.trim();
     if (!answer || submittingAnswer) return;
     setSubmittingAnswer(true);
+    soundService.playOptionSelect();
 
     // Trouver la question courante dans dbQuestions
     const dayDbQuestions = dbQuestions.filter((q: any) => q.day === currentDay);
@@ -458,12 +478,13 @@ export default function MatchesScreen() {
 
     setSubmittingAnswer(false);
 
-    const countToday = dayDbQuestions.length;
+    const countToday = totalQuestionsToday;
     if (countToday === 0) return;
     if (qIndex < countToday - 1) {
       setTimeout(() => { setQIndex(i => i + 1); setCustomText(''); }, 300);
     } else {
       setTimeout(async () => {
+        soundService.playMatchCelebration();
         setAnsweredDays(prev => [...prev, currentDay]);
         setViewMode('overview');
         setQIndex(0);
