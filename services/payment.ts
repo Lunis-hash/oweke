@@ -2,7 +2,7 @@ import client from './api';
 
 export async function initStripePayment(packId: string, amount?: number) {
   try {
-    const res = await client.post('/payment/create-intent', { packId, amount });
+    const res = await client.post('/payment/create-payment-intent', { optionId: packId, packId, amount });
     return res.data;
   } catch (error) {
     console.error('Failed to init stripe payment', error);
